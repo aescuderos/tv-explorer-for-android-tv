@@ -1,9 +1,9 @@
 # TV Explorer for Android TV
 
-A small, dependency-free Android TV app to browse and watch free-to-air live TV channels from public lists.
+A small Android TV app to browse and watch free-to-air live TV channels from public lists.
 It is inspired by [tvexplorer.live](https://tvexplorer.live/) and uses the same visual style as
 [Retro Launcher](https://github.com/aescuderos/retro-launcher-for-android-tv), with a red accent.
-Channels are played in an external player (VLC by default).
+Channels are played inside the app using LibVLC; a separate VLC app is not required.
 
 ## Disclaimer
 
@@ -25,24 +25,29 @@ This app was built with the assistance of an AI coding tool, under the direction
   TV and wide-screen layouts retain the sidebar and five-column grid.
 - Merges several public sources and removes duplicates, keeping several alternative URLs per channel.
 - **Stream verification:** country views probe streams (manifest plus first media chunk) and cache results for 12 hours. This is not a guarantee of playback; the all-countries view and favourites can include unverified streams.
+- Built-in LibVLC video player with accessible icon controls for touch and remote:
+  pause/play, alternative streams, fullscreen, return and license information.
+  Fullscreen requests landscape orientation; exiting restores the previous orientation.
+  It tries other URLs when a stream fails. Playback stops when the app goes to the background.
 - Remote and gamepad friendly: **A** select, **B** back, **L1 / R1** switch category; long-press/menu/Y/X offers alternative streams.
-- Pure Java (Android framework only), `minSdk 21`, Leanback launcher entry with banner.
+- Java UI with LibVLC, `minSdk 21`, Leanback launcher entry with banner.
 
 ## Requirements
 
 - Android TV / Android device with internet access.
-- [VLC for Android](https://www.videolan.org/vlc/) (recommended); any app that handles `video/*` links also works.
 
 ## Build
 
-Requires JDK 17 and the Android SDK (platform `android-33`, build-tools `33.x`). No Gradle.
+Requires JDK 17, the Android SDK (platform `android-33`, build-tools `33.x`), curl, zip and unzip. No Gradle.
 
 ```
+mkdir -p deps
+curl -fL -o deps/libvlc-all-3.6.2.aar https://repo.maven.apache.org/maven2/org/videolan/android/libvlc-all/3.6.2/libvlc-all-3.6.2.aar
 ANDROID_SDK=~/Android/Sdk ./build.sh
 adb install -r out/tv-explorer.apk
 ```
 
-A debug keystore is generated on first build at `~/.android/tv-explorer.jks` (override with `KEYSTORE=`).
+A debug keystore is generated on first build at `~/.android/tv-explorer.jks` (override with `KEYSTORE=` and `KEYSTORE_PASSWORD=`). Keep the same signing key to update an existing installation. The build verifies the LibVLC AAR's SHA-256; it embeds separate native libraries for arm64, armv7, x86 and x86_64.
 
 ## Phone layout smoke test
 
@@ -54,6 +59,7 @@ ADB=/path/to/adb ANDROID_SERIAL=<device> python3 tests/portrait_smoke.py
 
 Tests portrait controls, favorites, search and rotation to/from the wide layout.
 It restores the previous rotation setting and removes the favorite it adds.
+`tests/player_smoke.py` checks the integrated player on the same device with a live channel.
 
 ## How it works
 
@@ -69,10 +75,18 @@ Streams that need a custom user agent/referrer, YouTube links and NSFW or closed
 AndroidManifest.xml
 src/com/tvexplorer/Catalog.java        download, merge and stream probing
 src/com/tvexplorer/MainActivity.java   UI, verification, player launch
+src/com/tvexplorer/PlayerActivity.java integrated video playback
 res/                                   icon and TV banner
 build.sh                               Gradle-less build script
 ```
 
 ## License
 
-MIT (see [LICENSE](LICENSE)).
+The app's own code is MIT (see [LICENSE](LICENSE)). It embeds unmodified
+[LibVLC for Android 3.6.2](https://code.videolan.org/videolan/vlc-android), copyright
+VideoLAN and contributors, licensed under LGPL 2.1 or later. The LGPL text is included
+in `assets/licenses/LGPL-2.1.txt` and can be opened from the player.
+[Android binding sources](https://repo.maven.apache.org/maven2/org/videolan/android/libvlc-all/3.6.2/libvlc-all-3.6.2-sources.jar)
+and [VLC sources](https://code.videolan.org/videolan/vlc) are published upstream.
+Before distributing an APK, verify the corresponding source and redistribution obligations
+for the exact LibVLC build and its included native dependencies.

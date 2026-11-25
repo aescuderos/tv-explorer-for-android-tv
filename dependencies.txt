@@ -1,0 +1,1 @@
+org.videolan.android:libvlc-all:3.6.2

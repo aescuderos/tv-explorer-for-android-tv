@@ -2,7 +2,6 @@ package com.tvexplorer;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ActivityNotFoundException;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -12,7 +11,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -69,7 +67,6 @@ public class MainActivity extends Activity {
     private static final int T_FAV = 0, T_SEARCH = 1, T_COUNTRY = 2, T_CAT = 3, T_REFRESH = 4;
     private static final long MAX_AGE = 14L * 24 * 3600 * 1000;
     private static final long ALIVE_TTL = 12L * 3600 * 1000;
-    private static final String VLC = "org.videolan.vlc";
 
     private static final Map<String, String> CAT_ES = new HashMap<String, String>();
     static {
@@ -553,17 +550,15 @@ public class MainActivity extends Activity {
 
     private void play(Catalog.Ch c, int n) {
         List<String> ord = ordered(c);
-        Uri u = Uri.parse(ord.get(Math.min(n, ord.size() - 1)));
-        Intent i = new Intent(Intent.ACTION_VIEW);
-        i.setDataAndType(u, "video/*");
-        i.putExtra("title", c.name);
-        i.setPackage(VLC);
-        try {
-            startActivity(i);
-        } catch (ActivityNotFoundException e) {
-            i.setPackage(null);
-            try { startActivity(i); } catch (ActivityNotFoundException e2) { Toast.makeText(this, "No hay reproductor instalado", Toast.LENGTH_LONG).show(); }
+        if (ord.isEmpty()) {
+            Toast.makeText(this, "Este canal no tiene emisiones disponibles", Toast.LENGTH_LONG).show();
+            return;
         }
+        Intent i = new Intent(this, PlayerActivity.class);
+        i.putExtra(PlayerActivity.EXTRA_NAME, c.name);
+        i.putStringArrayListExtra(PlayerActivity.EXTRA_URLS, new ArrayList<String>(ord));
+        i.putExtra(PlayerActivity.EXTRA_INDEX, Math.min(n, ord.size() - 1));
+        startActivity(i);
     }
 
     private void loadAlive() {
