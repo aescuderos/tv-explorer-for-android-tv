@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 SDK=${ANDROID_SDK:?set ANDROID_SDK}
 BT=$(ls -d "$SDK"/build-tools/33.* | tail -1)
 JAR=$SDK/platforms/android-33/android.jar
-VC=${1:-1}; VN=${2:-1.0}
+VC=${1:-2}; VN=${2:-1.1}
 KS=${KEYSTORE:-$HOME/.android/tv-explorer.jks}
 if [ ! -f "$KS" ]; then
   keytool -genkeypair -keystore "$KS" -alias tvx -keyalg RSA -keysize 2048 -validity 10000 \

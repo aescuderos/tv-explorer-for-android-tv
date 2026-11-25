@@ -20,8 +20,11 @@ This app was built with the assistance of an AI coding tool, under the direction
 ## Features
 
 - Browse by country, category (and regional categories for Spain), search and favourites.
+- Responsive phone layout: narrow screens use a two-column grid (three on wider
+  compact screens) and touch controls for country, search, favourites and categories.
+  TV and wide-screen layouts retain the sidebar and five-column grid.
 - Merges several public sources and removes duplicates, keeping several alternative URLs per channel.
-- **Stream verification:** only channels whose stream really answers (manifest plus first media chunk) are shown. Results are cached for 12 hours.
+- **Stream verification:** country views probe streams (manifest plus first media chunk) and cache results for 12 hours. This is not a guarantee of playback; the all-countries view and favourites can include unverified streams.
 - Remote and gamepad friendly: **A** select, **B** back, **L1 / R1** switch category; long-press/menu/Y/X offers alternative streams.
 - Pure Java (Android framework only), `minSdk 21`, Leanback launcher entry with banner.
 
@@ -41,10 +44,23 @@ adb install -r out/tv-explorer.apk
 
 A debug keystore is generated on first build at `~/.android/tv-explorer.jks` (override with `KEYSTORE=`).
 
+## Phone layout smoke test
+
+With the app installed, a populated country selected and an unlocked phone:
+
+```
+ADB=/path/to/adb ANDROID_SERIAL=<device> python3 tests/portrait_smoke.py
+```
+
+Tests portrait controls, favorites, search and rotation to/from the wide layout.
+It restores the previous rotation setting and removes the favorite it adds.
+
 ## How it works
 
 On first run the app downloads the lists, merges them into a compact local catalogue (refreshed every 14 days or via
 "Actualizar lista"), then probes the streams of the selected country in parallel before showing them.
+The all-countries view can also show unverified channels, favourites are not filtered by verification, and
+search checks up to 300 matches. A stream can stop working after a successful check.
 Streams that need a custom user agent/referrer, YouTube links and NSFW or closed channels are skipped.
 
 ## Project layout

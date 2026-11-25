@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -26,6 +27,7 @@ import android.view.ViewGroup;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.GridView;
@@ -113,6 +115,9 @@ public class MainActivity extends Activity {
     private float dp;
     private boolean resetPending;
     private boolean ready;
+    private boolean compact;
+    private Button countryButton, categoryButton;
+    private String verificationStatus;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -207,18 +212,24 @@ public class MainActivity extends Activity {
         });
         for (Map.Entry<String, Integer> e : cl) entries.add(new Entry(T_CAT, catName(e.getKey()), e.getKey(), e.getValue()));
         entries.add(new Entry(T_REFRESH, "Actualizar lista", null, 0));
-        ((BaseAdapter) sideList.getAdapter()).notifyDataSetChanged();
+        updateNavigation();
         int sel = selectDefault ? 3 : Math.max(0, Math.min(current, entries.size() - 1));
         current = -1;
-        sideList.setSelectionFromTop(sel, (int) (Math.min(sel, 3) * 44 * dp));
+        if (sideList != null) sideList.setSelectionFromTop(sel, (int) (Math.min(sel, 3) * 44 * dp));
         showEntry(sel);
-        sideList.requestFocus();
+        if (sideList != null) sideList.requestFocus();
     }
 
     private void buildUi() {
+        Configuration config = getResources().getConfiguration();
+        compact = (config.uiMode & Configuration.UI_MODE_TYPE_MASK) != Configuration.UI_MODE_TYPE_TELEVISION
+                && config.screenWidthDp < 600;
         int screenW = getResources().getDisplayMetrics().widthPixels;
-        int listW = (int) (screenW * 0.23f);
+        int listW = compact ? 0 : (int) (screenW * 0.23f);
         int pad = (int) (10 * dp);
+        sideList = null;
+        countryButton = null;
+        categoryButton = null;
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.HORIZONTAL);
@@ -226,15 +237,16 @@ public class MainActivity extends Activity {
 
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
+        if (compact) buildMobileControls(left);
         header = new TextView(this);
         header.setTextColor(Color.WHITE);
-        header.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
-        header.setSingleLine(true);
+        header.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 16 : 22);
+        header.setMaxLines(compact ? 2 : 1);
         header.setEllipsize(TextUtils.TruncateAt.END);
         header.setPadding((int) (16 * dp), (int) (10 * dp), (int) (16 * dp), (int) (4 * dp));
         left.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
-        int cols = 5;
+        int cols = compact ? Math.max(2, (int) ((screenW / dp - 20) / 180)) : 5;
         int gap = (int) (6 * dp);
         grid = new GridView(this);
         grid.setNumColumns(cols);
@@ -264,8 +276,22 @@ public class MainActivity extends Activity {
             }
         });
         left.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1f));
+        if (compact) {
+            TextView hint = new TextView(this);
+            hint.setText("Mantén pulsado un canal para favoritos y emisiones alternativas");
+            hint.setTextColor(Color.LTGRAY);
+            hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            hint.setPadding(pad, pad, pad, pad);
+            left.addView(hint, new LinearLayout.LayoutParams(-1, -2));
+        }
         root.addView(left, new LinearLayout.LayoutParams(0, -1, 1f));
 
+        if (!compact) buildSidebar(root, listW, pad);
+        setContentView(root);
+        updateNavigation();
+    }
+
+    private void buildSidebar(LinearLayout root, int listW, int pad) {
         LinearLayout side = new LinearLayout(this);
         side.setOrientation(LinearLayout.VERTICAL);
         side.setBackgroundColor(PANEL);
@@ -292,7 +318,93 @@ public class MainActivity extends Activity {
         });
         side.addView(sideList, new LinearLayout.LayoutParams(-1, 0, 1f));
         root.addView(side, new LinearLayout.LayoutParams(listW, -1));
-        setContentView(root);
+    }
+
+    private Button mobileButton(String label, View.OnClickListener action) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setAllCaps(false);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        button.setTextColor(Color.WHITE);
+        button.setMinHeight((int) (48 * dp));
+        button.setOnClickListener(action);
+        return button;
+    }
+
+    private void buildMobileControls(LinearLayout parent) {
+        LinearLayout brandRow = new LinearLayout(this);
+        brandRow.setGravity(Gravity.CENTER_VERTICAL);
+        brandRow.setPadding((int) (10 * dp), 0, (int) (6 * dp), 0);
+        TextView brand = new TextView(this);
+        brand.setText("TV EXPLORER");
+        brand.setTextColor(ACCENT);
+        brand.setTypeface(null, Typeface.BOLD);
+        brand.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        brandRow.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
+        Button menu = mobileButton("⋮", new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                new AlertDialog.Builder(MainActivity.this).setItems(new String[]{"Actualizar lista"},
+                        new DialogInterface.OnClickListener() {
+                            @Override public void onClick(DialogInterface dialog, int which) { startLoad(true); }
+                        }).show();
+            }
+        });
+        menu.setContentDescription("Más opciones");
+        brandRow.addView(menu, new LinearLayout.LayoutParams((int) (48 * dp), -2));
+        parent.addView(brandRow, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout actions = new LinearLayout(this);
+        actions.setPadding((int) (6 * dp), 0, (int) (6 * dp), 0);
+        countryButton = mobileButton(countryName(country), new View.OnClickListener() {
+            @Override public void onClick(View v) { pickCountry(); }
+        });
+        countryButton.setContentDescription("Elegir país");
+        actions.addView(countryButton, new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(mobileButton("Buscar", new View.OnClickListener() {
+            @Override public void onClick(View v) { askSearch(); }
+        }), new LinearLayout.LayoutParams(0, -2, 1));
+        actions.addView(mobileButton("Favoritos", new View.OnClickListener() {
+            @Override public void onClick(View v) { showEntry(0); }
+        }), new LinearLayout.LayoutParams(0, -2, 1));
+        parent.addView(actions, new LinearLayout.LayoutParams(-1, -2));
+        categoryButton = mobileButton("Categorías", new View.OnClickListener() {
+            @Override public void onClick(View v) { pickCategory(); }
+        });
+        categoryButton.setContentDescription("Elegir categoría");
+        parent.addView(categoryButton, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void pickCategory() {
+        final List<Integer> positions = new ArrayList<Integer>();
+        List<String> labels = new ArrayList<String>();
+        for (int i = 0; i < entries.size(); i++) {
+            Entry e = entries.get(i);
+            if (e.type == T_CAT) {
+                positions.add(i);
+                labels.add(e.label + " (" + e.count + ")");
+            }
+        }
+        new AlertDialog.Builder(this).setTitle("Categorías")
+                .setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface dialog, int which) { showEntry(positions.get(which)); }
+                }).setNegativeButton("Cancelar", null).show();
+    }
+
+    private void updateNavigation() {
+        if (sideList != null) ((BaseAdapter) sideList.getAdapter()).notifyDataSetChanged();
+        if (countryButton != null) countryButton.setText(countryName(country));
+        if (categoryButton != null) {
+            Entry e = current >= 0 && current < entries.size() ? entries.get(current) : null;
+            categoryButton.setText(e != null && e.type == T_CAT ? "Categoría: " + e.label : "Categorías");
+        }
+    }
+
+    @Override public void onConfigurationChanged(Configuration config) {
+        super.onConfigurationChanged(config);
+        dp = getResources().getDisplayMetrics().density;
+        if (!ready) return;
+        buildUi();
+        if (verificationStatus != null) header.setText(verificationStatus);
+        else rebuildEntries(false);
     }
 
     private void resetGrid() {
@@ -336,7 +448,7 @@ public class MainActivity extends Activity {
         resetPending = true;
         grid.setSelector(new ColorDrawable(grid.hasFocus() ? ACCENT : 0));
         resetGrid();
-        ((BaseAdapter) sideList.getAdapter()).notifyDataSetChanged();
+        updateNavigation();
     }
 
     private void activate(int pos) {
@@ -420,12 +532,12 @@ public class MainActivity extends Activity {
             applyFilter(e);
             ((BaseAdapter) grid.getAdapter()).notifyDataSetChanged();
             if (pos >= 0) grid.setSelection(Math.min(pos, Math.max(0, shown.size() - 1)));
-            if (shown.isEmpty()) sideList.requestFocus();
+            if (shown.isEmpty() && sideList != null) sideList.requestFocus();
         } else {
             ((BaseAdapter) grid.getAdapter()).notifyDataSetChanged();
         }
         entries.get(0).count = favs.size();
-        ((BaseAdapter) sideList.getAdapter()).notifyDataSetChanged();
+        updateNavigation();
     }
 
     private void options(final Catalog.Ch c) {
@@ -508,12 +620,14 @@ public class MainActivity extends Activity {
             }
             if (!ok && need) todo.add(c);
         }
+        verificationStatus = null;
         if (todo.isEmpty()) { done.run(); return; }
         shown = new ArrayList<Catalog.Ch>();
         ((BaseAdapter) grid.getAdapter()).notifyDataSetChanged();
         final int total = todo.size();
         final AtomicInteger n = new AtomicInteger();
-        header.setText("Comprobando emisiones… 0/" + total);
+        verificationStatus = "Comprobando emisiones… 0/" + total;
+        header.setText(verificationStatus);
         for (final Catalog.Ch c : todo) {
             checkPool.execute(new Runnable() {
                 @Override public void run() {
@@ -531,8 +645,11 @@ public class MainActivity extends Activity {
                         ui.post(new Runnable() {
                             @Override public void run() {
                                 if (my != gen) return;
-                                if (k == total) { saveAlive(); done.run(); }
-                                else header.setText("Comprobando emisiones… " + k + "/" + total);
+                                if (k == total) { verificationStatus = null; saveAlive(); done.run(); }
+                                else {
+                                    verificationStatus = "Comprobando emisiones… " + k + "/" + total;
+                                    header.setText(verificationStatus);
+                                }
                             }
                         });
                     }
@@ -555,7 +672,10 @@ public class MainActivity extends Activity {
         for (int k = 0; k < n; k++) {
             i = (i + dir + n) % n;
             int t = entries.get(i).type;
-            if (t == T_FAV || t == T_CAT) { sideList.setSelection(i); return; }
+            if (t == T_FAV || t == T_CAT) {
+                if (sideList != null) sideList.setSelection(i); else showEntry(i);
+                return;
+            }
         }
     }
 
@@ -563,7 +683,7 @@ public class MainActivity extends Activity {
     public boolean dispatchKeyEvent(KeyEvent e) {
         if (!ready || grid == null) return super.dispatchKeyEvent(e);
         int k = e.getKeyCode();
-        if (k == KeyEvent.KEYCODE_DPAD_RIGHT && sideList.hasFocus() && !shown.isEmpty()) {
+        if (k == KeyEvent.KEYCODE_DPAD_RIGHT && sideList != null && sideList.hasFocus() && !shown.isEmpty()) {
             if (e.getAction() == KeyEvent.ACTION_DOWN) enterGrid();
             return true;
         }
@@ -588,7 +708,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (ready && grid != null && grid.hasFocus()) sideList.requestFocus(); else super.onBackPressed();
+        if (ready && grid != null && grid.hasFocus() && sideList != null) sideList.requestFocus(); else super.onBackPressed();
     }
 
     @Override
@@ -661,7 +781,7 @@ public class MainActivity extends Activity {
             addView(f, new LayoutParams(-1, (int) (w * 0.6f)));
             title = new TextView(MainActivity.this);
             title.setTextColor(Color.WHITE);
-            title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 16 : 14);
             title.setMinLines(2);
             title.setMaxLines(2);
             title.setEllipsize(TextUtils.TruncateAt.END);
